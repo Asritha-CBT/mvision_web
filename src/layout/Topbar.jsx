@@ -10,7 +10,7 @@ export default function Topbar({ onToggle }) {
             >
                 ☰
             </button>
-            <h1 className="text-lg font-semibold">Machine Vision</h1>
+            <h1 className="text-lg font-semibold font-heading text-red-500">Machine Vision</h1>
         </div>
     );
 }

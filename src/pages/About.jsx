@@ -1,3 +1,3 @@
 export default function About() {
-  return <div className="text-xl">About this application.</div>;
+		return <div className="text-xl">About this application.</div>;
 }
