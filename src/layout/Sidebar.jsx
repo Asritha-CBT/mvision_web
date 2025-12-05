@@ -8,7 +8,7 @@ export default function Sidebar({ items, collapsed }) {
         animate={{ width: collapsed ? 0 : 230 }}
         className="h-full bg-gray-900 shadow-xl overflow-hidden"
         >
-            <h2 className="text-xl font-bold mb-4" hidden={collapsed}>Menu</h2>
+            <h2 className="text-xl font-bold mb-4 font-heading" hidden={collapsed}>Menu</h2>
             {items.map((item) => (
                 <Link
                 key={item.path}
