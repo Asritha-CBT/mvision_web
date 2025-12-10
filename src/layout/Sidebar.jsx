@@ -1,23 +1,30 @@
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-
+import { NavLink } from "react-router-dom";
+import { Home, Users } from "lucide-react";
 
 export default function Sidebar({ items, collapsed }) {
+    const iconMap = {
+        Dashboard: <Home size={20} />,
+        User: <Users size={20} />,
+    };
+
     return (
-        <motion.div
-        animate={{ width: collapsed ? 0 : 230 }}
-        className="h-full bg-gray-900 shadow-xl overflow-hidden"
-        >
-            <h2 className="text-xl font-bold mb-4 font-heading" hidden={collapsed}>Menu</h2>
-            {items.map((item) => (
-                <Link
-                key={item.path}
-                to={item.path}
-                className="block p-2 rounded hover:bg-gray-700 text-gray-200"
-                >
-                    {item.label}
-                </Link>
-            ))}
-        </motion.div>
+        <div className={`bg-gray-900 text-white h-full p-4 ${collapsed ? "w-16" : "w-56"} duration-300`}>
+            <ul className="space-y-3">
+                {items.map((item) => (
+                    <li key={item.path}>
+                        <NavLink
+                            to={item.path}
+                            className={({ isActive }) =>
+                                `flex items-center gap-3 p-2 rounded-lg 
+                                ${isActive ? "bg-sky-600" : "hover:bg-gray-700"}`
+                            }
+                        >
+                            {iconMap[item.label]}
+                            {!collapsed && item.label}
+                        </NavLink>
+                    </li>
+                ))}
+            </ul>
+        </div>
     );
 }

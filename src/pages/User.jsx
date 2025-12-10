@@ -1,142 +1,199 @@
+// Users.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import Card from "../components/Card.jsx";
 import Table from "../components/Table.jsx";
-import Form from "../components/Form.jsx";
-import Modal from "../components/Modal.jsx"; 
-import EmbeddingModal from "../components/EmbeddingModal.jsx"; 
+import CommonForm from "../components/CommonForm.jsx";
+import Modal from "../components/Modal.jsx";
+import EmbeddingModal from "../components/EmbeddingModal.jsx";
+import { Plus, Pencil, Trash2, ScanFace } from "lucide-react";
 
 export default function Users() {
-	const BASE_URL = "http://127.0.0.1:8000"; 
+  const BASE_URL = "http://127.0.0.1:8000";
 
-	const [users, setUsers] = useState([]);
-	const [selectedUser, setSelectedUser] = useState(null);
-	const [modalOpen, setModalOpen] = useState(false); 
-	const [modalUser, setModalUser] = useState(null);
-	const [isModalOpen, setIsModalOpen] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  // Embedding modal controls (single modal instance)
+  const [modalUser, setModalUser] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-	// ---------- FETCH USERS ----------
-		const loadUsers = async () => {
-			try {
-				const res = await axios.get(`${BASE_URL}/users/users`);
-				console.log('------------------ Printing User Data -------------------------',res.data);
-				setUsers(res.data);
-			} catch (err) {
-				console.error("Error loading users:", err);
-			}
-		};
+  // ---------- FETCH USERS ----------
+  const loadUsers = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/users/users`);
+      console.log("------------------ Printing User Data -------------------------", res.data);
+      setUsers(res.data);
+    } catch (err) {
+      console.error("Error loading users:", err);
+    }
+  };
 
-		useEffect(() => {
-			loadUsers();
-		}, []);
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
-	// ---------- OPEN ADD ----------
-		const handleAdd = () => {
-			setSelectedUser(null);
-			setModalOpen(true);
-		};
+  // ---------- OPEN ADD ----------
+  const handleAdd = () => {
+    setSelectedUser(null);
+    setModalOpen(true);
+  };
 
-	// ---------- OPEN EDIT ----------
-		const handleEdit = (user) => {
-			setSelectedUser(user);
-			setModalOpen(true);
-		};
+  // ---------- OPEN EDIT ----------
+  const handleEdit = (user) => {
+    setSelectedUser(user);
+    setModalOpen(true);
+  };
 
-	// ---------- DELETE USER ----------
-		const handleDelete = async (id) => {
-			try {
-				await axios.delete(`${BASE_URL}/users/delete/${id}`);
-				loadUsers(); // refresh table
-			} catch (err) {
-				console.error("Delete error:", err);
-			}
-		};
+  // ---------- DELETE USER ----------
+  const handleDelete = async (id) => {
+    console.log("------------------Id--------------", id);
+    const ok = window.confirm("Are you sure you want to delete this user?");
+    if (!ok) return;
 
+    try {
+      await axios.delete(`${BASE_URL}/users/delete/${id}`);
+      loadUsers(); // refresh table
+    } catch (err) {
+      console.error("Delete error:", err);
+    }
+  };
 
-	// ---------- HANDLE EMBEDDINGS ----------
-		const handleEmbedding = (user) => {
-			setModalUser(user);
-			setIsModalOpen(true);
-		};
+  // ---------- HANDLE EMBEDDINGS ----------
+  const handleEmbedding = (user) => {
+    setModalUser(user);
+    setIsModalOpen(true);
+  };
 
-	// ---------- ADD or EDIT ----------
-		const handleSubmit = async (data) => {
-			try {
-				if (selectedUser) {
-					// UPDATE
-					await axios.put(`${BASE_URL}/users/update/${selectedUser.id}`, data);
-				} else {
-					// INSERT
-					await axios.post(`${BASE_URL}/users/user_register`, data);
-				} 
-				loadUsers(); 
-				setModalOpen(false);  
-			} catch (err) {
-				console.error("Submit error:", err);
-			}
-		};
+  // ---------- ADD or EDIT ----------
+  const handleSubmit = async (data) => {
+    try {
+      if (selectedUser) {
+        // UPDATE
+        await axios.put(`${BASE_URL}/users/update/${selectedUser.id}`, data);
+      } else {
+        // INSERT
+        await axios.post(`${BASE_URL}/users/user_register`, data);
+      }
+      loadUsers();
+      setModalOpen(false);
+    } catch (err) {
+      console.error("Submit error:", err);
+    }
+  };
 
-	return (
-		<div className="p-6 space-y-4">
-			<Card>
-				<div className="flex justify-between items-center mb-4">
-					<h2 className="text-xl font-bold font-heading">Users</h2>
-					<button
-						className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-						onClick={handleAdd}
-					>
-						User Registration
-					</button>
-				</div>
-				{/* TABLE */}
-				<Table
-					columns={["Name", "Department", "Embeddings", "Actions"]}
-					data={users.map((u) => [
-						u.name,
-						u.department,
-						(u.embedding && Array.isArray(u.embedding) && u.embedding.length > 0)
-						? "Added"
-						: "Not added"
-						,
-						<div className="flex gap-2" key={u.id}>
-							<button
-								className="px-2 py-1 bg-green-500 text-white rounded"
-								onClick={() => handleEmbedding(u)}
-							>
-								Embeddings
-							</button>
-							<EmbeddingModal
-								user={modalUser}
-								isOpen={isModalOpen}
-								onClose={() => setIsModalOpen(false)}
-								BASE_URL={BASE_URL}
-								loadUsers={loadUsers}
-							/>
-							<button
-								className="px-2 py-1 bg-yellow-500 text-white rounded"
-								onClick={() => handleEdit(u)}
-							>
-								Edit
-							</button>
-							<button
-								className="px-2 py-1 bg-red-600 text-white rounded"
-								onClick={() => handleDelete(u.id)}
-							>
-								Delete
-							</button>
-						</div>,
-					])}
-				/> 
-			</Card>
+  // Build table rows
+  const tableData = users.map((u) => [
+    u.name,
+    u.department,
+    // Embeddings status badge
+    u.embedding && Array.isArray(u.embedding) && u.embedding.length > 0 ? (
+      <span
+        className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-green-600 text-white"
+        key={`embed-${u.id}`}
+      >
+        Added
+      </span>
+    ) : (
+      <span
+        className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-gray-700 text-gray-200"
+        key={`embed-${u.id}`}
+      >
+        Not added
+      </span>
+    ),
+    // Actions column
+    <div className="flex items-center gap-2" key={`actions-${u.id}`}>
+      {/* Manage embeddings */}
+      <button
+        title="Manage Embeddings"
+        aria-label={`Manage embeddings for ${u.name}`}
+        onClick={() => handleEmbedding(u)}
+        className="p-2 rounded hover:bg-sky-700/20 transition-colors"
+      >
+        <ScanFace size={18} className="text-sky-400" />
+      </button>
 
-			{modalOpen && (
-				<Modal onClose={() => setModalOpen(false)}>
-					<Form
-						initialData={selectedUser || { name: "", department: "" }}
-						onSubmit={handleSubmit}
-					/>
-				</Modal>
-			)}
-		</div>
-	);
+      {/* Edit */}
+      <button
+        title="Edit"
+        aria-label={`Edit ${u.name}`}
+        onClick={() => handleEdit(u)}
+        className="p-2 rounded hover:bg-yellow-500/20 transition-colors"
+      >
+        <Pencil size={18} className="text-yellow-400" />
+      </button>
+
+      {/* Delete */}
+      <button
+        title="Delete"
+        aria-label={`Delete ${u.name}`}
+        onClick={() => handleDelete(u.id)}
+        className="p-2 rounded hover:bg-red-600/20 transition-colors"
+      >
+        <Trash2 size={18} className="text-red-400" />
+      </button>
+    </div>,
+  ]);
+
+  return (
+    <div className="p-6 space-y-4">
+      <Card>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold font-heading">Users</h2>
+
+          {/* Add button */}
+          <button
+            onClick={handleAdd}
+            title="New User"
+            aria-label="Add new user"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-shadow shadow-sm hover:shadow-md"
+          >
+            <Plus size={20} />
+            <span className="hidden sm:inline">New User</span>
+          </button>
+        </div>
+
+        {/* TABLE */}
+        <Table columns={["Name", "Department", "Embeddings", "Actions"]} data={tableData} />
+      </Card>
+
+      {/* Add / Edit Modal */}
+      {modalOpen && (
+		<Modal onClose={() => setModalOpen(false)}>
+			<CommonForm
+				title={selectedUser ? "Update User" : "User Registration"}
+				initialData={selectedUser || { name: "", department: "" }}
+				onSubmit={handleSubmit}
+				fields={[
+					{ name: "name", label: "Name", type: "text", required: true },
+					{ name: "department", label: "Department", type: "text", required: true }
+				]}
+				validate={(form) => {
+					const e = {};
+					if (!form.name?.trim()) e.name = "Name is required";
+					if (!form.department?.trim()) e.department = "Department is required";
+					return e;
+				}}
+			/>
+		</Modal>
+
+      )}
+
+      {/* Embedding modal: single instance controlled by modalUser */}
+      {isModalOpen && modalUser && (
+        <EmbeddingModal
+          user={modalUser}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setModalUser(null);
+            loadUsers(); // refresh after embedding changes
+          }}
+          BASE_URL={BASE_URL}
+          loadUsers={loadUsers}
+        />
+      )}
+    </div>
+  );
 }
