@@ -6,10 +6,10 @@ import Table from "../components/Table.jsx";
 import CommonForm from "../components/CommonForm.jsx";
 import Modal from "../components/Modal.jsx";
 import EmbeddingModal from "../components/EmbeddingModal.jsx";
-import { Plus, Pencil, Trash2, ScanFace } from "lucide-react";
+import { Plus, Pencil, Trash2, ScanFace } from "lucide-react"; 
+import FastAPIConfig from '../constants/configConstants';
 
 export default function Users() {
-  const BASE_URL = "http://127.0.0.1:8000";
 
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -21,7 +21,7 @@ export default function Users() {
   // ---------- FETCH USERS ----------
   const loadUsers = async () => {
     try {
-      const res = await axios.get(`${BASE_URL}/users/users`);
+      const res = await axios.get(`${FastAPIConfig.BASE_URL}/users/users`);
       console.log("------------------ Printing User Data -------------------------", res.data);
       setUsers(res.data);
     } catch (err) {
@@ -52,7 +52,7 @@ export default function Users() {
     if (!ok) return;
 
     try {
-      await axios.delete(`${BASE_URL}/users/delete/${id}`);
+      await axios.delete(`${FastAPIConfig.BASE_URL}/users/delete/${id}`);
       loadUsers(); // refresh table
     } catch (err) {
       console.error("Delete error:", err);
@@ -70,10 +70,10 @@ export default function Users() {
     try {
       if (selectedUser) {
         // UPDATE
-        await axios.put(`${BASE_URL}/users/update/${selectedUser.id}`, data);
+        await axios.put(`${FastAPIConfig.BASE_URL}/users/update/${selectedUser.id}`, data);
       } else {
         // INSERT
-        await axios.post(`${BASE_URL}/users/user_register`, data);
+        await axios.post(`${FastAPIConfig.BASE_URL}/users/user_register`, data);
       }
       loadUsers();
       setModalOpen(false);
@@ -190,7 +190,7 @@ export default function Users() {
             setModalUser(null);
             loadUsers(); // refresh after embedding changes
           }}
-          BASE_URL={BASE_URL}
+          BASE_URL={FastAPIConfig.BASE_URL}
           loadUsers={loadUsers}
         />
       )}
