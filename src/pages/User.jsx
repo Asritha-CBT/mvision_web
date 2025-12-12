@@ -7,7 +7,7 @@ import CommonForm from "../components/CommonForm.jsx";
 import Modal from "../components/Modal.jsx";
 import EmbeddingModal from "../components/EmbeddingModal.jsx";
 import { Plus, Pencil, Trash2, ScanFace } from "lucide-react"; 
-import FastAPIConfig from '../constants/configConstants';
+import {FastAPIConfig} from '../constants/configConstants';
 
 export default function Users() {
 
@@ -87,7 +87,8 @@ export default function Users() {
     u.name,
     u.department,
     // Embeddings status badge
-    u.embedding && Array.isArray(u.embedding) && u.embedding.length > 0 ? (
+    u.face_embedding && Array.isArray(u.face_embedding) && u.face_embedding.length > 0 || 
+	u.body_embedding && Array.isArray(u.body_embedding) && u.body_embedding.length > 0 ? (
       <span
         className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-green-600 text-white"
         key={`embed-${u.id}`}

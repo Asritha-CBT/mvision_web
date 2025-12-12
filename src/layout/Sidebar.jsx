@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users } from "lucide-react";
+import { Home, Users, Clock } from "lucide-react";
 
 export default function Sidebar({ items, collapsed }) {
     const iconMap = {
-        Dashboard: <Home size={20} />,
-        User: <Users size={20} />,
+        "Dashboard": <Home size={20} />,
+        "User": <Users size={20} />,
+        "User Activity": <Clock size={20} />,
     };
 
     return (

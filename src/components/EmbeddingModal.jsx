@@ -117,22 +117,27 @@ export default function EmbeddingModal({
 					</button>
 
 					{/* Remove Button */}
-					<button
-						onClick={() => {
-						setMode("remove");
-						setConfirmed(false);
-						setStarted(false);
-						setTimer(0);
-						}}
-						className={`
-						flex items-center gap-2 px-4 py-2 rounded-lg border 
-						transition-colors duration-200
-						${mode === "remove" ? "bg-red-600 text-white border-red-600" : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-red-100"}
-						`}
-					>
-						<Trash2 size={18} className={mode === "remove" ? "text-white" : "text-red-600"} />
-						Remove
-					</button>
+					{(
+						(user.face_embedding !== null ) || 
+						(user.body_embedding !== null ) &&  (
+							<button
+								onClick={() => {
+								setMode("remove");
+								setConfirmed(false);
+								setStarted(false);
+								setTimer(0);
+								}}
+								className={`
+								flex items-center gap-2 px-4 py-2 rounded-lg border 
+								transition-colors duration-200
+								${mode === "remove" ? "bg-red-600 text-white border-red-600" : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-red-100"}
+								`}
+							>
+								<Trash2 size={18} className={mode === "remove" ? "text-white" : "text-red-600"} />
+								Remove
+							</button>
+						)
+					)}
 				</div>
 
 				{/* REMOVE */}

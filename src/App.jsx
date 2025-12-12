@@ -8,6 +8,7 @@ export default function App() {
 	const menuItems = [ 
 		{ label: "Dashboard", path: "/dashboard" },
 		{ label: "User", path: "/user" },
+		{ label: "User Activity", path: "/user_activity" },
 	];
 
 
