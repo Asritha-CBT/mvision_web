@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { Plus, Play, Trash2, Square  } from "lucide-react"; 
+import { Plus, Play, Trash2, Square, Layers } from "lucide-react"; 
 export default function EmbeddingModal({
 	user,
 	isOpen,
@@ -12,7 +12,14 @@ export default function EmbeddingModal({
 	const [confirmed, setConfirmed] = useState(false);
 	const [started, setStarted] = useState(false);
 	const [timer, setTimer] = useState(0);
-	const [completed, setCompleted] = useState(false);
+	const [embeddingCollectionCompleted, setEmbeddingCollectionCompleted] = useState(false);
+	const [isProcessing, setIsProcessing] = useState(false);
+	const [extractionCompleted, setExtractionCompleted] = useState(false);
+	const [progress, setProgress] = useState(0);
+	const [stage, setStage] = useState("");
+	const [message, setMessage] = useState(""); 
+	const progressIntervalRef = useRef(null);
+ 
 
 	// Reset modal when opened
 	useEffect(() => {
@@ -64,7 +71,7 @@ export default function EmbeddingModal({
 				id: user.id
 			});
 			setStarted(true);
-			setCompleted(false);
+			setEmbeddingCollectionCompleted(false);
 			alert("Embedding process started!");
 		} catch (err) {
 			console.error(err);
@@ -75,7 +82,7 @@ export default function EmbeddingModal({
 	const handleStop = async () => {
 		try {
 			await axios.post(`${BASE_URL}/api/extraction/stop`); 
-			setCompleted(true);
+			setEmbeddingCollectionCompleted(true);
 			setStarted(false);
 			setTimer(0);
 			setMode(null); 
@@ -88,6 +95,73 @@ export default function EmbeddingModal({
 	}; 
 	if (!isOpen) return null;
 
+	const handleExtract = async () => {
+	try {
+		setIsProcessing(true);
+		setExtractionCompleted(false);
+		setProgress(0);
+
+		const res = await axios.post(
+			`${BASE_URL}/api/extraction/extract`,
+			{ id: user.id }
+		);
+
+		if (res.data?.status === "completed") {
+			setProgress(100);
+			setExtractionCompleted(true);
+			setIsProcessing(false);
+		} 
+		else if (res.data?.status === "started") {
+			callProgressService(user.id); // 🔥 start polling
+		}
+	} catch (err) {
+		console.error(err.response?.data || err);
+		alert("Extraction failed");
+		setIsProcessing(false);
+	}
+	}; 
+	const callProgressService = (userId) => {
+		// clear any old poller
+		if (progressIntervalRef.current) {
+			clearInterval(progressIntervalRef.current);
+		}
+
+		progressIntervalRef.current = setInterval(async () => {
+			try {
+				const res = await axios.get(
+					`${BASE_URL}/api/extraction/progress/${userId}`
+				);
+
+				const data = res.data;
+
+				setProgress(data.percent);
+				setStage(data.stage);
+				setMessage(data.message);
+
+				// stop polling when done
+				if (data.percent >= 100 || data.stage === "embeddingCollectionCompleted") {
+					clearInterval(progressIntervalRef.current);
+					progressIntervalRef.current = null;
+
+					setIsProcessing(false);
+					setExtractionCompleted(true);
+				}
+			} catch (err) {
+				console.error("Progress error:", err);
+				clearInterval(progressIntervalRef.current);
+			}
+		}, 1500); // poll every 1.5 sec
+	};
+
+	useEffect(() => {
+		return () => {
+			if (progressIntervalRef.current) {
+				clearInterval(progressIntervalRef.current);
+			}
+		};
+	}, []);
+	
+
 	return (
 		<div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
 			<div className="bg-white w-full max-w-md rounded-xl shadow-lg p-6 text-black">
@@ -99,38 +173,38 @@ export default function EmbeddingModal({
 				{/* Option Buttons */}
 				<div className="flex justify-center gap-3 mb-5">
 					{/* New Embeddings Button */}
-					<button
-						onClick={() => {
-						setMode("add");
-						setConfirmed(true);
-						setStarted(false);
-						setTimer(0);
-						}}
-						className={`
-						flex items-center gap-2 px-4 py-2 rounded-lg border 
-						transition-colors duration-200 
-						${mode === "add" ? "bg-sky-600 text-white border-sky-600" : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-100"}
-						`}
-					>
-						<Plus size={18} className={mode === "add" ? "text-white" : "text-blue-600"} />
-						New
-					</button>
-
-					{/* Remove Button */}
-					{(
-						(user.face_embedding !== null ) || 
-						(user.body_embedding !== null ) &&  (
-							<button
-								onClick={() => {
-								setMode("remove");
-								setConfirmed(false);
+					{!isProcessing && (
+						<button
+							onClick={() => {
+								setMode("add");
+								setConfirmed(true);
 								setStarted(false);
 								setTimer(0);
+							}}
+							className={`
+								flex items-center gap-2 px-4 py-2 rounded-lg border 
+								transition-colors duration-200 
+								${mode === "add" ? "bg-sky-600 text-white border-sky-600" : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-100"}
+							`}
+						>
+							<Plus size={18} className={mode === "add" ? "text-white" : "text-blue-600"} />
+							New
+						</button>  
+					)}
+					{(
+						(user.face_embedding !== null  || 
+						 user.body_embedding !== null ) &&  (
+							<button
+								onClick={() => {
+									setMode("remove");
+									setConfirmed(false);
+									setStarted(false);
+									setTimer(0);
 								}}
 								className={`
-								flex items-center gap-2 px-4 py-2 rounded-lg border 
-								transition-colors duration-200
-								${mode === "remove" ? "bg-red-600 text-white border-red-600" : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-red-100"}
+									flex items-center gap-2 px-4 py-2 rounded-lg border 
+									transition-colors duration-200
+									${mode === "remove" ? "bg-red-600 text-white border-red-600" : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-red-100"}
 								`}
 							>
 								<Trash2 size={18} className={mode === "remove" ? "text-white" : "text-red-600"} />
@@ -159,17 +233,16 @@ export default function EmbeddingModal({
 						{/* Start/Stop only after Add OR confirmed Update */}
 						{confirmed && (
 							<div> 
-								{/* Show success message when extraction is done */}
-								{console.log("started:", started, "completed:", completed, "mode:", mode)}
-								{completed && (
+								{/* Show success message when extraction is done */} 
+								{embeddingCollectionCompleted && (
 									<div className="text-green-400 font-semibold text-center">
-										Features extracted successfully!
+										Images collected successfully !
 									</div>
 								)}
 								{/* TIMER */}
 								{started && (
 									<div className="text-center text-green-600 font-semibold text-sm mb-2">
-									Extracting Features: {formatTime(timer)}
+										Extracting Features: {formatTime(timer)}
 									</div>
 								)}
 
@@ -185,20 +258,64 @@ export default function EmbeddingModal({
 									)}
 
 									{started && (
-									<button
-										onClick={handleStop}
-										className="flex items-center gap-2 px-5 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 shadow-md hover:shadow-lg cursor-pointer"
-									>
-										<Square size={18} />
-										Stop
-									</button>
+										<button
+											onClick={handleStop}
+											className="flex items-center gap-2 px-5 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 shadow-md hover:shadow-lg cursor-pointer"
+										>
+											<Square size={18} />
+											Stop
+										</button>
 									)}
+									
 								</div>
 							</div>
 						)}
 					</div>
-				)}
-
+				)} 
+				
+				<div class="flex justify-center gap-1 mb-1">
+					{embeddingCollectionCompleted && !isProcessing && (
+					<button
+						onClick={handleExtract}
+						className="flex items-center gap-2 px-5 py-2 bg-sky-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 shadow-md hover:shadow-lg"
+						title="This will replace the old embeddings with new."
+					>
+						<Layers  size={18} />
+						Extract
+					</button>
+					)} 
+				</div>
+				<div className="flex justify-center gap-1 mb-1">	
+					{isProcessing && (
+						<div className="flex items-center gap-3 px-5 py-2 bg-gray-100 rounded-lg">
+							<div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+							<span className="text-gray-700 font-medium">
+								Processing...
+							</span>
+						</div>
+					)} 
+				</div>
+				<div className="flex justify-center gap-1 mb-1">	
+					{extractionCompleted && !isProcessing && (
+						<p className="text-green-600 font-semibold">
+							Extraction Completed successfully
+						</p>
+					)}
+				</div>
+				<div className="flex justify-center gap-1 mb-1">	
+					{isProcessing && (
+						<div className="w-full mt-4">
+							<p className="text-sm mb-1">{stage} — {message}</p>
+							<div className="w-full bg-gray-700 rounded">
+								<div
+									className="bg-green-500 h-2 rounded transition-all"
+									style={{ width: `${progress}%` }}
+								/>
+							</div>
+							<p className="text-xs mt-1">{progress}%</p>
+						</div>
+					)}
+				</div> 
 				{/* Close */}
 				<div className="flex justify-end gap-3 mt-6">
 					<button className="px-4 py-2 bg-gray-300 text-black rounded-lg" onClick={onClose}>
