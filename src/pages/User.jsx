@@ -21,8 +21,7 @@ export default function Users() {
   // ---------- FETCH USERS ----------
   const loadUsers = async () => {
     try {
-      const res = await axios.get(`${FastAPIConfig.BASE_URL}/users/users`);
-      console.log("------------------ Printing User Data -------------------------", res.data);
+      const res = await axios.get(`${FastAPIConfig.BASE_URL}/users/users`); 
       setUsers(res.data);
     } catch (err) {
       console.error("Error loading users:", err);
@@ -46,8 +45,7 @@ export default function Users() {
   };
 
   // ---------- DELETE USER ----------
-  const handleDelete = async (id) => {
-    console.log("------------------Id--------------", id);
+  const handleDelete = async (id) => { 
     const ok = window.confirm("Are you sure you want to delete this user?");
     if (!ok) return;
 
