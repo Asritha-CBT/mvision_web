@@ -4,8 +4,8 @@ import { Home, Users, Clock } from "lucide-react";
 export default function Sidebar({ items, collapsed }) {
     const iconMap = {
         "Dashboard": <Home size={20} />,
-        "User": <Users size={20} />,
-        "User Presence": <Clock size={20} />,
+        "Persons": <Users size={20} />,
+        "Person Presence": <Clock size={20} />,
     };
 
     return (
