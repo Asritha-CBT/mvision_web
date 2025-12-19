@@ -112,7 +112,7 @@ export default function EmbeddingModal({
 			setIsProcessing(false);
 		} 
 		else if (res.data?.status === "started") {
-			callProgressService(user.id); // 🔥 start polling
+			callProgressService(user.id); // start polling
 		}
 	} catch (err) {
 		console.error(err.response?.data || err);
@@ -242,7 +242,7 @@ export default function EmbeddingModal({
 								{/* TIMER */}
 								{started && (
 									<div className="text-center text-green-600 font-semibold text-sm mb-2">
-										Extracting Features: {formatTime(timer)}
+										Collecting images: {formatTime(timer)}
 									</div>
 								)}
 
@@ -273,8 +273,8 @@ export default function EmbeddingModal({
 					</div>
 				)} 
 				
-				<div class="flex justify-center gap-1 mb-1">
-					{embeddingCollectionCompleted && !isProcessing && (
+				<div className="flex justify-center gap-1 mb-1">
+					{!extractionCompleted && embeddingCollectionCompleted && !isProcessing && (
 					<button
 						onClick={handleExtract}
 						className="flex items-center gap-2 px-5 py-2 bg-sky-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 shadow-md hover:shadow-lg"
@@ -305,7 +305,7 @@ export default function EmbeddingModal({
 				<div className="flex justify-center gap-1 mb-1">	
 					{isProcessing && (
 						<div className="w-full mt-4">
-							<p className="text-sm mb-1">{stage} — {message}</p>
+							<p className="text-sm mb-1">{message}</p>
 							<div className="w-full bg-gray-700 rounded">
 								<div
 									className="bg-green-500 h-2 rounded transition-all"

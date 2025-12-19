@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Activity, Clock, DownloadCloud, RotateCw, Search, Users, Camera } from "lucide-react";
+import {FastAPIConfig} from '../constants/configConstants';
+import axios from "axios";
 
 // UserPresenceReport.jsx
 // - Stylish Tailwind UI for filtering and viewing user presence per camera
@@ -7,9 +9,14 @@ import { Activity, Clock, DownloadCloud, RotateCw, Search, Users, Camera } from 
 // - Table shows user, start time, end time, time spent
 // - CSV download (client-side)
 
-export default function UserPresenceReport() {
-	const [from, setFrom] = useState(""); // ISO-like "YYYY-MM-DDTHH:mm" from <input>
-	const [to, setTo] = useState("");
+export default function UserPresenceReport() { 
+	const getNow = () => {
+		const now = new Date();
+		const offset = now.getTimezoneOffset() * 60000;
+		return new Date(now - offset).toISOString().slice(0, 16);
+	}; 
+	const [from, setFrom] = useState(getNow());
+	const [to, setTo] = useState(getNow());
 	const [camNum, setCamNum] = useState("");
 	const [userId, setUserId] = useState("");
 
@@ -33,21 +40,22 @@ export default function UserPresenceReport() {
 		return params.toString();
 	};
 
-	// Fetch report from backend
 	const fetchReport = async (signal) => {
 		setLoading(true);
 		setError(null);
+
 		try {
-		const q = buildQuery();
-		const url = `/api/reports/user-presence${q ? "?" + q : ""}`;
-		const res = await fetch(url, { signal });
-		if (!res.ok) throw new Error(`Server error: ${res.status}`);
-		const json = await res.json();
-		setData(Array.isArray(json) ? json : json.data || []);
+			const q = buildQuery();
+			const url = `${FastAPIConfig.BASE_URL}/reports/user_presence${q ? "?" + q : ""}`; 
+			const res = await axios.get(url, { signal }); 
+			const json = res.data;
+			setData(Array.isArray(json) ? json : json.data || []);
 		} catch (err) {
-		if (err.name !== "AbortError") setError(err.message || "Failed to fetch");
+			if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
+				setError(err.message || "Failed to fetch");
+			}
 		} finally {
-		setLoading(false);
+			setLoading(false);
 		}
 	};
 
@@ -62,86 +70,100 @@ export default function UserPresenceReport() {
 		abortRef.current = ac;
 
 		timerRef.current = setTimeout(() => {
-		fetchReport(ac.signal);
+			fetchReport(ac.signal);
 		}, 350); // debounce 350ms
 
 		return () => {
-		clearTimeout(timerRef.current);
-		ac.abort();
+			clearTimeout(timerRef.current);
+			ac.abort();
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [from, to, camNum, userId]);
 
 	// Fetch options for cams and users once
 	useEffect(() => {
+		const controller = new AbortController();
 		let mounted = true;
-		(async () => {
-		try {
-			const [camsRes, usersRes] = await Promise.all([
-			fetch("/api/cameras"),
-			fetch("/api/users"),
-			]);
-			if (!camsRes.ok || !usersRes.ok) return;
-			const camsJson = await camsRes.json();
-			const usersJson = await usersRes.json();
-			if (!mounted) return;
-			setCams(Array.isArray(camsJson) ? camsJson : camsJson.data || []);
-			setUsers(Array.isArray(usersJson) ? usersJson : usersJson.data || []);
-		} catch (e) {
-			// ignore - optional
-		}
-		})();
-		return () => (mounted = false);
-	}, []);
 
-	// Utility: format timestamp for display
-	const formatTS = (iso) => {
-		if (!iso) return "—";
-		try {
-		const d = new Date(iso);
-		return d.toLocaleString();
-		} catch (e) {
-		return iso;
-		}
-	};
+		const fetchFiltersData = async () => {
+			try {
+				const [camsRes, usersRes] = await Promise.all([
+					axios.get(`${FastAPIConfig.BASE_URL}/reports/cameras`, {
+						signal: controller.signal,
+					}),
+					axios.get(`${FastAPIConfig.BASE_URL}/users/users`, {
+						signal: controller.signal,
+					}),
+				]);
 
+				if (!mounted) return;
+
+				setCams(Array.isArray(camsRes.data) ? camsRes.data : camsRes.data?.data || []);
+				setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data?.data || []);
+			} catch (err) {
+				if (axios.isCancel(err)) return;
+				console.error("Failed to load filter data", err);
+			}
+		}; 
+		fetchFiltersData(); 
+		return () => {
+			mounted = false;
+			controller.abort();
+		};
+	}, []); 
 	// Utility: compute time spent between start and end
 	const computeTimeSpent = (startIso, endIso, time_spent_seconds) => {
 		if (time_spent_seconds != null) {
-		// if backend provided seconds
-		const s = Number(time_spent_seconds);
-		if (isNaN(s)) return "—";
-		const hrs = Math.floor(s / 3600);
-		const mins = Math.floor((s % 3600) / 60);
-		const secs = Math.floor(s % 60);
-		return `${hrs > 0 ? hrs + "h " : ""}${mins}m ${secs}s`;
+			const s = Number(time_spent_seconds);
+			if (isNaN(s)) return "-";
+			const hrs = Math.floor(s / 3600);
+			const mins = Math.floor((s % 3600) / 60);
+			const secs = Math.floor(s % 60);
+			return `${hrs > 0 ? hrs + "h " : ""}${mins}m ${secs}s`;
 		}
-		if (!startIso || !endIso) return "—";
+
+		if (!startIso || !endIso) return "-";
+
 		const diff = new Date(endIso) - new Date(startIso);
-		if (isNaN(diff) || diff < 0) return "—";
+		if (isNaN(diff) || diff < 0) return "-";
+
 		const s = Math.floor(diff / 1000);
 		const hrs = Math.floor(s / 3600);
 		const mins = Math.floor((s % 3600) / 60);
 		const secs = Math.floor(s % 60);
+
 		return `${hrs > 0 ? hrs + "h " : ""}${mins}m ${secs}s`;
 	};
 
 	// CSV generation and download (client-side)
 	const downloadCSV = () => {
 		if (!data || data.length === 0) return;
-		const headers = ["user","cam_number","entry_time","exit_time","time_spent"];
+
+		const headers = ["Person","Camera","Entry Time","Exit Time","Time Spent"];
+
 		const rows = data.map((r) => {
-		const timeSpent = computeTimeSpent(r.entry_time, r.exit_time, r.time_spent_seconds ?? r.time_spent);
-		return [
-			r.user_name ?? r.user ?? r.user_id ?? "",
-			r.cam_number ?? r.cam ?? "",
-			r.entry_time ?? "",
-			r.exit_time ?? "",
-			timeSpent,
-		];
+			const timeSpent = computeTimeSpent(
+				r.entry_time,
+				r.exit_time,
+				r.time_spent_seconds ?? r.time_spent
+			);
+
+			return [
+				r.user_name ?? r.user ?? r.user_id ?? "",
+				r.cam_name ?? r.cam ?? "",
+				formatReadableDate(r.entry_time),
+				formatReadableDate(r.exit_time),
+				timeSpent,
+			];
 		});
 
-		const csvContent = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
+		// Add BOM to fix Excel weird characters
+		const csvContent =
+			"\uFEFF" +
+			[headers.join(","), ...rows.map((r) =>
+				r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")
+			)].join("\n");
+
 		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
 		const link = document.createElement("a");
 		link.href = URL.createObjectURL(blob);
@@ -150,6 +172,21 @@ export default function UserPresenceReport() {
 		link.click();
 		document.body.removeChild(link);
 	};
+	const formatReadableDate = (iso) => {
+		if (!iso) return "-";
+		const d = new Date(iso);
+		if (isNaN(d)) return "-";
+
+		const pad = (n) => String(n).padStart(2, "0");
+
+		const day = pad(d.getDate());
+		const month = pad(d.getMonth() + 1);
+		const year = d.getFullYear();
+
+		return `${day}-${month}-${year} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+	};
+
+
 
 	return (
 		<div className="p-6 space-y-6">
@@ -184,32 +221,35 @@ export default function UserPresenceReport() {
 			{/* Filters Card */}
 			<div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-lg shadow">
 				<div className="flex flex-col">
-					<label className="text-sm font-medium text-slate-600 mb-1">From (timestamp)</label>
+					<label className="text-sm font-medium text-slate-600 mb-1">
+						From (timestamp)
+					</label>
 					<input
 						type="datetime-local"
 						value={from}
 						onChange={(e) => setFrom(e.target.value)}
 						className="px-3 py-2 border rounded text-slate-600"
 					/>
-				</div> 
+				</div>
 				<div className="flex flex-col">
-					<label className="text-sm font-medium text-slate-600 mb-1">To (timestamp)</label>
+					<label className="text-sm font-medium text-slate-600 mb-1">
+						To (timestamp)
+					</label>
 					<input
 						type="datetime-local"
 						value={to}
 						onChange={(e) => setTo(e.target.value)}
 						className="px-3 py-2 border rounded text-slate-600"
 					/>
-				</div>
-
+				</div> 
 				<div className="flex flex-col">
 					<label className="text-sm font-medium text-slate-600 mb-1">Camera</label>
 					<select value={camNum} onChange={(e) => setCamNum(e.target.value)} className="px-3 py-2 border rounded text-slate-600">
 						<option value="">All cameras</option>
 						{cams.map((c) => (
-						<option key={c.id ?? c.number ?? c.cam_number} value={c.number ?? c.cam_number ?? c.id}>
-							{c.name ?? `Camera ${c.number ?? c.cam_number ?? c.id}`}
-						</option>
+							<option key={c.id ?? c.number ?? c.cam_number} value={c.number ?? c.cam_number ?? c.id}>
+								{c.name ?? `Camera ${c.number ?? c.cam_number ?? c.id}`}
+							</option>
 						))}
 					</select>
 				</div>
@@ -219,9 +259,9 @@ export default function UserPresenceReport() {
 					<select value={userId} onChange={(e) => setUserId(e.target.value)} className="px-3 py-2 border rounded text-slate-600">
 						<option value="">All users</option>
 						{users.map((u) => (
-						<option key={u.id} value={u.id}>
-							{u.name ?? u.username ?? u.email}
-						</option>
+							<option key={u.id} value={u.id}>
+								{u.name ?? u.username ?? u.email}
+							</option>
 						))}
 					</select>
 				</div>
@@ -230,7 +270,7 @@ export default function UserPresenceReport() {
 			{/* Table Card */}
 			<div className="bg-white rounded-lg shadow">
 				<div className="p-4 flex items-center justify-between">
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2  p-2 border">
 						<Search className="w-4 h-4 text-slate-500" />
 						<h3 className="font-medium">Results</h3>
 						<span className="text-sm text-slate-500">{loading ? "fetching..." : `${data.length} rows`}</span>
@@ -239,18 +279,17 @@ export default function UserPresenceReport() {
 				</div>
 
 				<div className="overflow-x-auto">
-					<table className="w-full text-left border-collapse">
+					<table className="w-full text-left border border-slate-00 border-collapse">
 						<thead className="bg-slate-50">
-						<tr>
-							<th className="px-4 py-3 text-sm font-semibold text-slate-600">User</th>
-							<th className="px-4 py-3 text-sm font-semibold text-slate-600">Camera</th>
-							<th className="px-4 py-3 text-sm font-semibold text-slate-600">Start Time</th>
-							<th className="px-4 py-3 text-sm font-semibold text-slate-600">End Time</th>
-							<th className="px-4 py-3 text-sm font-semibold text-slate-600">Time Spent</th>
+						<tr className="bg-sky-500 text-white">
+							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>User</h3></th>
+							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>Camera</h3></th>
+							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>Start Time</h3></th>
+							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>End Time</h3></th>
+							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>Time Spent</h3></th>
 						</tr>
-						</thead>
-
-						<tbody>
+						</thead> 
+						<tbody> 
 							{data.length === 0 && !loading ? (
 								<tr>
 									<td colSpan={5} className="px-4 py-6 text-center text-slate-500">
@@ -259,12 +298,12 @@ export default function UserPresenceReport() {
 								</tr>
 							) : (
 								data.map((r, idx) => (
-								<tr key={r.id ?? idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-									<td className="px-4 py-3">{r.user_name ?? r.user ?? r.user_id}</td>
-									<td className="px-4 py-3">{r.cam_number ?? r.cam ?? r.camera}</td>
-									<td className="px-4 py-3">{formatTS(r.entry_time)}</td>
-									<td className="px-4 py-3">{formatTS(r.exit_time)}</td>
-									<td className="px-4 py-3">{computeTimeSpent(r.entry_time, r.exit_time, r.time_spent_seconds ?? r.time_spent)}</td>
+								<tr key={r.id ?? idx} className={idx % 2 === 0 ? "bg-white text-slate-600" : "bg-slate-100 text-slate-600"}> 
+									<td className="px-4 py-3 border-slate-400">{r.user_name ?? r.user ?? r.user_id}</td>
+									<td className="px-4 py-3 border-slate-400">{r.cam_name ?? r.cam ?? r.camera}</td>
+									<td className="px-4 py-3 border-slate-400">{formatReadableDate(r.entry_time)}</td>
+									<td className="px-4 py-3 border-slate-400">{formatReadableDate(r.exit_time)}</td>
+									<td className="px-4 py-3 border-slate-400">{computeTimeSpent(r.entry_time, r.exit_time, r.time_spent_seconds ?? r.time_spent)}</td>
 								</tr>
 								))
 							)}
