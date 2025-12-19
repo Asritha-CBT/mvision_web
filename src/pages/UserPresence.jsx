@@ -1,31 +1,35 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { Activity, Clock, DownloadCloud, RotateCw, Search, Users, Camera } from "lucide-react";
-import {FastAPIConfig} from '../constants/configConstants';
+import { FastAPIConfig } from '../constants/configConstants';
 import axios from "axios";
 
-// UserPresenceReport.jsx
-// - Stylish Tailwind UI for filtering and viewing user presence per camera
-// - Calls report API when filters change (debounced)
-// - Table shows user, start time, end time, time spent
-// - CSV download (client-side)
+// UserPresenceReport.jsx (with search + pagination)
 
-export default function UserPresenceReport() { 
+export default function UserPresenceReport() {
 	const getNow = () => {
 		const now = new Date();
 		const offset = now.getTimezoneOffset() * 60000;
 		return new Date(now - offset).toISOString().slice(0, 16);
-	}; 
+	};
+
+	// filters
 	const [from, setFrom] = useState(getNow());
 	const [to, setTo] = useState(getNow());
 	const [camNum, setCamNum] = useState("");
 	const [userId, setUserId] = useState("");
 
+	// data / ui state
 	const [data, setData] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState(null);
 
 	const [cams, setCams] = useState([]);
 	const [users, setUsers] = useState([]);
+
+	// search + pagination
+	const [search, setSearch] = useState("");
+	const [page, setPage] = useState(0);
+	const [perPage, setPerPage] = useState(10);
 
 	const timerRef = useRef(null);
 	const abortRef = useRef(null);
@@ -46,10 +50,11 @@ export default function UserPresenceReport() {
 
 		try {
 			const q = buildQuery();
-			const url = `${FastAPIConfig.BASE_URL}/reports/user_presence${q ? "?" + q : ""}`; 
-			const res = await axios.get(url, { signal }); 
+			const url = `${FastAPIConfig.BASE_URL}/reports/user_presence${q ? "?" + q : ""}`;
+			const res = await axios.get(url, { signal });
 			const json = res.data;
 			setData(Array.isArray(json) ? json : json.data || []);
+			setPage(0); // reset to first page after fresh load
 		} catch (err) {
 			if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
 				setError(err.message || "Failed to fetch");
@@ -65,7 +70,6 @@ export default function UserPresenceReport() {
 		if (timerRef.current) clearTimeout(timerRef.current);
 		if (abortRef.current) abortRef.current.abort();
 
-		// set up abort controller for fetch
 		const ac = new AbortController();
 		abortRef.current = ac;
 
@@ -104,13 +108,14 @@ export default function UserPresenceReport() {
 				if (axios.isCancel(err)) return;
 				console.error("Failed to load filter data", err);
 			}
-		}; 
-		fetchFiltersData(); 
+		};
+		fetchFiltersData();
 		return () => {
 			mounted = false;
 			controller.abort();
 		};
-	}, []); 
+	}, []);
+
 	// Utility: compute time spent between start and end
 	const computeTimeSpent = (startIso, endIso, time_spent_seconds) => {
 		if (time_spent_seconds != null) {
@@ -135,11 +140,51 @@ export default function UserPresenceReport() {
 		return `${hrs > 0 ? hrs + "h " : ""}${mins}m ${secs}s`;
 	};
 
+	// Date formatting (DD-MM-YYYY HH:mm:ss)
+	const formatReadableDate = (iso) => {
+		if (!iso) return "-";
+		const d = new Date(iso);
+		if (isNaN(d)) return "-";
+
+		const pad = (n) => String(n).padStart(2, "0");
+
+		const day = pad(d.getDate());
+		const month = pad(d.getMonth() + 1);
+		const year = d.getFullYear();
+
+		return `${day}-${month}-${year} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+	};
+
+	// Client-side filtering: memoized
+	const filtered = useMemo(() => {
+		const q = (search || "").trim().toLowerCase();
+		if (!q) return data;
+		return data.filter((r) => {
+			const parts = [
+				r.user_name ?? r.user ?? String(r.user_id ?? ""),
+				r.camera_name ?? r.cam_name ?? r.cam ?? r.camera ?? r.cam_number ?? "",
+				formatReadableDate(r.entry_time),
+				formatReadableDate(r.exit_time),
+			]
+				.join(" ")
+				.toLowerCase();
+			return parts.includes(q);
+		});
+	}, [data, search]);
+
+	// Pagination calculations
+	const total = filtered.length;
+	const totalPages = Math.max(1, Math.ceil(total / perPage));
+	const paginated = useMemo(() => {
+		const start = page * perPage;
+		return filtered.slice(start, start + perPage);
+	}, [filtered, page, perPage]);
+
 	// CSV generation and download (client-side)
 	const downloadCSV = () => {
 		if (!data || data.length === 0) return;
 
-		const headers = ["Person","Camera","Entry Time","Exit Time","Time Spent"];
+		const headers = ["Person", "Camera", "Entry Time", "Exit Time", "Time Spent"];
 
 		const rows = data.map((r) => {
 			const timeSpent = computeTimeSpent(
@@ -150,7 +195,7 @@ export default function UserPresenceReport() {
 
 			return [
 				r.user_name ?? r.user ?? r.user_id ?? "",
-				r.cam_name ?? r.cam ?? "",
+				r.camera_name ?? r.cam_name ?? r.cam ?? "",
 				formatReadableDate(r.entry_time),
 				formatReadableDate(r.exit_time),
 				timeSpent,
@@ -172,36 +217,31 @@ export default function UserPresenceReport() {
 		link.click();
 		document.body.removeChild(link);
 	};
-	const formatReadableDate = (iso) => {
-		if (!iso) return "-";
-		const d = new Date(iso);
-		if (isNaN(d)) return "-";
 
-		const pad = (n) => String(n).padStart(2, "0");
-
-		const day = pad(d.getDate());
-		const month = pad(d.getMonth() + 1);
-		const year = d.getFullYear();
-
-		return `${day}-${month}-${year} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+	// Pagination helpers
+	const gotoPage = (p) => {
+		const np = Math.min(Math.max(0, p), totalPages - 1);
+		setPage(np);
 	};
-
-
+	const handlePerPageChange = (n) => {
+		setPerPage(Number(n));
+		setPage(0);
+	};
 
 	return (
 		<div className="p-6 space-y-6">
 			<div className="flex items-center justify-between">
-					<div className="flex items-center gap-3">
-						<Activity className="w-6 h-6 text-yellow-400" />
+				<div className="flex items-center gap-3">
+					<Activity className="w-6 h-6 text-yellow-400" />
 					<div>
-						<h2 className="text-2xl font-semibold">User Presence</h2>
+						<h2 className="text-2xl font-semibold">Person Presence Report</h2>
 						<p className="text-sm text-slate-500">Filter and export presence reports per camera</p>
 					</div>
 				</div>
 
 				<div className="flex items-center gap-2">
 					<button
-						onClick={() => { setFrom(""); setTo(""); setCamNum(""); setUserId(""); }}
+						onClick={() => { setFrom(getNow()); setTo(getNow()); setCamNum(""); setUserId(""); }}
 						className="flex items-center gap-2 px-3 py-2 bg-white border rounded shadow-sm text-sm text-black"
 						title="Reset filters"
 					>
@@ -219,11 +259,9 @@ export default function UserPresenceReport() {
 			</div>
 
 			{/* Filters Card */}
-			<div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-lg shadow">
+			<div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-300 p-4 rounded-lg shadow">
 				<div className="flex flex-col">
-					<label className="text-sm font-medium text-slate-600 mb-1">
-						From (timestamp)
-					</label>
+					<label className="text-sm font-medium text-slate-600 mb-1">From (timestamp)</label>
 					<input
 						type="datetime-local"
 						value={from}
@@ -232,16 +270,14 @@ export default function UserPresenceReport() {
 					/>
 				</div>
 				<div className="flex flex-col">
-					<label className="text-sm font-medium text-slate-600 mb-1">
-						To (timestamp)
-					</label>
+					<label className="text-sm font-medium text-slate-600 mb-1">To (timestamp)</label>
 					<input
 						type="datetime-local"
 						value={to}
 						onChange={(e) => setTo(e.target.value)}
 						className="px-3 py-2 border rounded text-slate-600"
 					/>
-				</div> 
+				</div>
 				<div className="flex flex-col">
 					<label className="text-sm font-medium text-slate-600 mb-1">Camera</label>
 					<select value={camNum} onChange={(e) => setCamNum(e.target.value)} className="px-3 py-2 border rounded text-slate-600">
@@ -255,7 +291,7 @@ export default function UserPresenceReport() {
 				</div>
 
 				<div className="flex flex-col">
-					<label className="text-sm font-medium text-slate-600 mb-1">User</label>
+					<label className="text-sm font-medium text-slate-600 mb-1">Person</label>
 					<select value={userId} onChange={(e) => setUserId(e.target.value)} className="px-3 py-2 border rounded text-slate-600">
 						<option value="">All users</option>
 						{users.map((u) => (
@@ -267,58 +303,155 @@ export default function UserPresenceReport() {
 				</div>
 			</div>
 
-			{/* Table Card */}
+			{/* Table Card with Search + Pagination */}
 			<div className="bg-white rounded-lg shadow">
-				<div className="p-4 flex items-center justify-between">
-					<div className="flex items-center gap-2  p-2 border">
-						<Search className="w-4 h-4 text-slate-500" />
-						<h3 className="font-medium">Results</h3>
-						<span className="text-sm text-slate-500">{loading ? "fetching..." : `${data.length} rows`}</span>
-					</div> 
-					<div className="text-sm text-red-500">{error}</div>
+				{/* header: search + summary */}
+				<div className="p-4 flex items-center justify-between gap-4">
+					<div className="flex items-center gap-3">
+						<Search className="w-5 h-5 text-slate-500" />
+						<input
+							type="search"
+							placeholder="Search by name, camera, date..."
+							value={search}
+							onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+							className="px-3 py-2 border rounded w-72 text-sm text-slate-500"
+						/> 
+						<div className="text-sm text-slate-600">
+							Showing {Math.min(total, page * perPage + 1)} - {Math.min(total, (page + 1) * perPage)} of {total}
+						</div>
+					</div>
+
+					{/* pagination controls */}
+					<div className="flex items-center gap-2">
+						<div className="text-sm text-slate-600 mr-2">
+							Show
+						</div>
+						<select
+							value={perPage}
+							onChange={(e) => handlePerPageChange(e.target.value)}
+							className="px-2 py-1 border rounded text-sm text-slate-500"
+						>
+							<option value={10}>10</option>
+							<option value={25}>25</option>
+							<option value={50}>50</option>
+							<option value={100}>100</option>
+						</select>
+
+						<div className="flex items-center gap-1 ml-3 text-slate-600">
+							<button
+								onClick={() => gotoPage(page - 1)}
+								disabled={page === 0}
+								className={`px-2 py-1 border rounded text-sm text-slate-600 ${page === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+							>
+								Prev
+							</button>
+
+							<div className="px-2 text-sm text-slate-600">
+								Page {page + 1} / {totalPages}
+							</div>
+
+							<button
+								onClick={() => gotoPage(page + 1)}
+								disabled={page >= totalPages - 1}
+								className={`px-2 py-1 border rounded text-sm ${page >= totalPages - 1 ? "opacity-50 cursor-not-allowed" : ""}`}
+							>
+								Next
+							</button>
+						</div>
+
+					</div>
 				</div>
 
-				<div className="overflow-x-auto">
-					<table className="w-full text-left border border-slate-00 border-collapse">
-						<thead className="bg-slate-50">
-						<tr className="bg-sky-500 text-white">
-							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>User</h3></th>
-							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>Camera</h3></th>
-							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>Start Time</h3></th>
-							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>End Time</h3></th>
-							<th className="px-4 py-3 text-sm font-semibold text-white border border-slate-400"><h3>Time Spent</h3></th>
-						</tr>
-						</thead> 
-						<tbody> 
-							{data.length === 0 && !loading ? (
-								<tr>
-									<td colSpan={5} className="px-4 py-6 text-center text-slate-500">
-										No results. Adjust filters to fetch data.
-									</td>
-								</tr>
+				<div className=" max-h-[231px]">
+					<div className="max-h-80 overflow-y-auto">
+						<table className="w-full text-left border border-slate-200 border-collapse table-fixed">
+						<thead className="bg-gray-700 text-white sticky top-0 z-10">
+							<tr>
+							<th className="px-4 py-3 text-sm font-semibold border border-slate-200 w-1/5">Person</th>
+							<th className="px-4 py-3 text-sm font-semibold border border-slate-200 w-1/5">Camera</th>
+							<th className="px-4 py-3 text-sm font-semibold border border-slate-200 w-1/5">Start Time</th>
+							<th className="px-4 py-3 text-sm font-semibold border border-slate-200 w-1/5">End Time</th>
+							<th className="px-4 py-3 text-sm font-semibold border border-slate-200 w-1/5">Time Spent</th>
+							</tr>
+						</thead>
+
+						<tbody>
+							{paginated.length === 0 && !loading ? (
+							<tr>
+								<td colSpan={5} className="px-4 py-6 text-center text-slate-500">
+								No results. Adjust filters to fetch data.
+								</td>
+							</tr>
 							) : (
-								data.map((r, idx) => (
-								<tr key={r.id ?? idx} className={idx % 2 === 0 ? "bg-white text-slate-600" : "bg-slate-100 text-slate-600"}> 
-									<td className="px-4 py-3 border-slate-400">{r.user_name ?? r.user ?? r.user_id}</td>
-									<td className="px-4 py-3 border-slate-400">{r.cam_name ?? r.cam ?? r.camera}</td>
-									<td className="px-4 py-3 border-slate-400">{formatReadableDate(r.entry_time)}</td>
-									<td className="px-4 py-3 border-slate-400">{formatReadableDate(r.exit_time)}</td>
-									<td className="px-4 py-3 border-slate-400">{computeTimeSpent(r.entry_time, r.exit_time, r.time_spent_seconds ?? r.time_spent)}</td>
+							paginated.map((r, idx) => (
+								<tr
+								key={r.id ?? idx}
+								className={`${idx % 2 === 0 ? "bg-white" : "bg-slate-100"} text-slate-600`}
+								>
+								<td className="px-4 py-3 border border-slate-200">
+									{r.user_name ?? r.user ?? r.user_id}
+								</td>
+								<td className="px-4 py-3 border border-slate-200">
+									{r.camera_name ?? r.cam_name ?? r.cam ?? r.camera ?? r.cam_number}
+								</td>
+								<td className="px-4 py-3 border border-slate-200">
+									{formatReadableDate(r.entry_time)}
+								</td>
+								<td className="px-4 py-3 border border-slate-200">
+									{formatReadableDate(r.exit_time)}
+								</td>
+								<td className="px-4 py-3 border border-slate-200">
+									{computeTimeSpent(
+									r.entry_time,
+									r.exit_time,
+									r.time_spent_seconds ?? r.time_spent
+									)}
+								</td>
 								</tr>
-								))
+							))
 							)}
 						</tbody>
-					</table>
-				</div>
+						</table>
+					</div>
+				</div> 
 
-				<div className="p-4 flex items-center justify-end gap-2">
-					<button
-						onClick={() => fetchReport(new AbortController().signal)}
-						className="px-3 py-2 border rounded text-sm flex items-center gap-2"
-					>
-						<RotateCw className="w-4 h-4" /> Refresh
-					</button>
-				</div>
+				{/* bottom pagination (optional detailed controls) */}
+				{/* <div className="p-4 flex items-center justify-between gap-2 text-black">
+					<div className="text-sm text-slate-600">
+						Showing {Math.min(total, page * perPage + 1)} - {Math.min(total, (page + 1) * perPage)} of {total}
+					</div>
+
+					<div className="flex items-center gap-2">
+						<button
+							onClick={() => gotoPage(0)}
+							disabled={page === 0}
+							className={`px-2 py-1 border rounded text-sm ${page === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+						>
+							First
+						</button>
+						<button
+							onClick={() => gotoPage(page - 1)}
+							disabled={page === 0}
+							className={`px-2 py-1 border rounded text-sm ${page === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+						>
+							Prev
+						</button>
+						<button
+							onClick={() => gotoPage(page + 1)}
+							disabled={page >= totalPages - 1}
+							className={`px-2 py-1 border rounded text-sm ${page >= totalPages - 1 ? "opacity-50 cursor-not-allowed" : ""}`}
+						>
+							Next
+						</button>
+						<button
+							onClick={() => gotoPage(totalPages - 1)}
+							disabled={page >= totalPages - 1}
+							className={`px-2 py-1 border rounded text-sm ${page >= totalPages - 1 ? "opacity-50 cursor-not-allowed" : ""}`}
+						>
+							Last
+						</button>
+					</div>
+				</div> */}
 			</div>
 		</div>
 	);

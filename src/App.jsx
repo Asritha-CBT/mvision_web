@@ -8,10 +8,9 @@ import User from "./pages/User";
 export default function App() {
 	const menuItems = [ 
 		{ label: "Dashboard", path: "/dashboard" },
-		{ label: "User", path: "/user" },
-		{ label: "User Presence", path: "/user_presence" },
-	];
-
+		{ label: "Persons", path: "/user" },
+		{ label: "Person Presence", path: "/user_presence" },
+	]; 
 
 	return (
 		<Router>

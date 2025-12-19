@@ -46,7 +46,7 @@ export default function Users() {
 
   // ---------- DELETE USER ----------
   const handleDelete = async (id) => { 
-    const ok = window.confirm("Are you sure you want to delete this user?");
+    const ok = window.confirm("Are you sure you want to delete this person?");
     if (!ok) return;
 
     try {
@@ -139,17 +139,17 @@ export default function Users() {
     <div className="p-6 space-y-4">
       <Card>
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold font-heading">Users</h2>
+          <h2 className="text-xl font-bold font-heading">Persons</h2>
 
           {/* Add button */}
           <button
             onClick={handleAdd}
-            title="New User"
-            aria-label="Add new user"
+            title="New  Person"
+            aria-label="Add new person"
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white transition-shadow shadow-sm hover:shadow-md"
           >
             <Plus size={20} />
-            <span className="hidden sm:inline">New User</span>
+            <span className="hidden sm:inline">New  Person</span>
           </button>
         </div>
 
@@ -161,7 +161,7 @@ export default function Users() {
       {modalOpen && (
 		<Modal onClose={() => setModalOpen(false)}>
 			<CommonForm
-				title={selectedUser ? "Update User" : "User Registration"}
+				title={selectedUser ? "Update  Person" : "Person Registration"}
 				initialData={selectedUser || { name: "", department: "" }}
 				onSubmit={handleSubmit}
 				fields={[
