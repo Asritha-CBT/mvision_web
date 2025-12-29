@@ -92,56 +92,61 @@ export default function Users() {
 	const tableData = users.map((u) => [
 		u.name,
 		u.department,
+
 		// Embeddings status badge
-		u.face_embedding && Array.isArray(u.face_embedding) && u.face_embedding.length > 0 || 
-		u.body_embedding && Array.isArray(u.body_embedding) && u.body_embedding.length > 0 ? (
+		(
+			(Array.isArray(u.face_embedding) && u.face_embedding.length > 0) ||
+			(Array.isArray(u.body_embedding) && u.body_embedding.length > 0)
+		) ? (
 			<span
-				className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-green-600 text-white"
-				key={`embed-${u.id}`}
+			className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-green-600 text-white"
+			key={`embed-${u.id}`}
 			>
-				Added
+			Added
 			</span>
 		) : (
 			<span
-				className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-gray-700 text-gray-200"
-				key={`embed-${u.id}`}
+			className="inline-block px-2 py-0.5 text-xs font-medium rounded bg-gray-700 text-gray-200"
+			key={`embed-${u.id}`}
 			>
-				Not added
+			Not added
 			</span>
 		),
+
+		// Category column (NA if missing)
+		u?.category?.name ?? "NA",
+
 		// Actions column
 		<div className="flex items-center gap-2" key={`actions-${u.id}`}>
-		{/* Manage embeddings */}
-		<button
+			<button
 			title="Manage Embeddings"
 			aria-label={`Manage embeddings for ${u.name}`}
 			onClick={() => handleEmbedding(u)}
 			className="p-2 rounded hover:bg-sky-700/20 transition-colors"
-		>
+			>
 			<ScanFace size={18} className="text-sky-400" />
-		</button>
+			</button>
 
-		{/* Edit */}
-		<button
+			<button
 			title="Edit"
 			aria-label={`Edit ${u.name}`}
 			onClick={() => handleEdit(u)}
 			className="p-2 rounded hover:bg-yellow-500/20 transition-colors"
-		>
+			>
 			<Pencil size={18} className="text-yellow-400" />
-		</button>
+			</button>
 
-		{/* Delete */}
-		<button
+			<button
 			title="Delete"
 			aria-label={`Delete ${u.name}`}
 			onClick={() => handleDelete(u.id)}
 			className="p-2 rounded hover:bg-red-600/20 transition-colors"
-		>
+			>
 			<Trash2 size={18} className="text-red-400" />
-		</button>
+			</button>
 		</div>,
-    ]); 
+		]);
+
 	// 🔍 Search whole dataset (name + dept + embeddings text)
 	const filtered = useMemo(() => {
 		const q = search.trim().toLowerCase();
@@ -197,7 +202,7 @@ export default function Users() {
 
 					{/* 🧾 Table */}
 					<Table
-						columns={["Name", "Department", "Embeddings", "Actions"]}
+						columns={["Name", "Department", "Embeddings", "Category",  "Actions"]}
 						data={paginated}
 					/>
 
