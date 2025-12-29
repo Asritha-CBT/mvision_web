@@ -19,6 +19,8 @@ export default function EmbeddingModal({
 	const [stage, setStage] = useState("");
 	const [message, setMessage] = useState(""); 
 	const progressIntervalRef = useRef(null);
+	const [categories, setCategories] = useState([]);
+	const [category_id, setCategoryId] = useState("");
  
 
 	// Reset modal when opened
@@ -68,7 +70,8 @@ export default function EmbeddingModal({
 	const handleStart = async () => {
 		try {
 			await axios.post(`${BASE_URL}/api/extraction/start`, {
-				id: user.id
+				id: user.id,
+				category_id: category_id ?? null
 			});
 			setStarted(true);
 			setEmbeddingCollectionCompleted(false);
@@ -96,30 +99,29 @@ export default function EmbeddingModal({
 	if (!isOpen) return null;
 
 	const handleExtract = async () => {
-	try {
-		setIsProcessing(true);
-		setExtractionCompleted(false);
-		setProgress(0);
+		try {
+			setIsProcessing(true);
+			setExtractionCompleted(false);
+			setProgress(0);
 
-		const res = await axios.post(
-			`${BASE_URL}/api/extraction/extract`,
-			{ id: user.id }
-		);
+			const res = await axios.post(`${BASE_URL}/api/extraction/extract`, {
+			id: user.id,
+			category_id: category_id != null ? Number(category_id) : null,
+			});
 
-		if (res.data?.status === "completed") {
-			setProgress(100);
-			setExtractionCompleted(true);
+			// Always poll after started
+			if (res.data?.status === "started") {
+			callProgressService(user.id);
+			} else if (res.data?.status === "error") {
+			throw new Error(res.data?.message || "Extraction error");
+			}
+		} catch (err) {
+			console.error(err.response?.data || err);
+			alert("Extraction failed");
 			setIsProcessing(false);
-		} 
-		else if (res.data?.status === "started") {
-			callProgressService(user.id); // start polling
 		}
-	} catch (err) {
-		console.error(err.response?.data || err);
-		alert("Extraction failed");
-		setIsProcessing(false);
-	}
-	}; 
+		};
+
 	const callProgressService = (userId) => {
 		// clear any old poller
 		if (progressIntervalRef.current) {
@@ -128,30 +130,46 @@ export default function EmbeddingModal({
 
 		progressIntervalRef.current = setInterval(async () => {
 			try {
-				const res = await axios.get(
-					`${BASE_URL}/api/extraction/progress/${userId}`
-				);
-
+				const res = await axios.get(`${BASE_URL}/api/extraction/progress/${userId}`);
 				const data = res.data;
 
-				setProgress(data.percent);
-				setStage(data.stage);
-				setMessage(data.message);
+				setProgress(Number(data.percent ?? 0));
+				setStage(data.stage ?? "");
+				setMessage(data.message ?? "");
 
-				// stop polling when done
-				if (data.percent >= 100 || data.stage === "embeddingCollectionCompleted") {
+				//stop polling only when backend says done or error
+				if (data.stage === "done") {
+					clearInterval(progressIntervalRef.current);
+					progressIntervalRef.current = null;
+
+					setProgress(100);
+					setIsProcessing(false);
+					setExtractionCompleted(true);
+
+					//refresh users NOW (this syncs UI with DB commit)
+					loadUsers();  // <--- IMPORTANT
+				}
+
+				if (data.stage === "error") {
 					clearInterval(progressIntervalRef.current);
 					progressIntervalRef.current = null;
 
 					setIsProcessing(false);
-					setExtractionCompleted(true);
+					setExtractionCompleted(false);
+
+					alert(data.message || "Extraction failed");
 				}
+
 			} catch (err) {
 				console.error("Progress error:", err);
 				clearInterval(progressIntervalRef.current);
+				progressIntervalRef.current = null;
+				setIsProcessing(false);
+				alert("Progress check failed");
 			}
-		}, 1500); // poll every 1.5 sec
+		}, 1500);
 	};
+
 
 	useEffect(() => {
 		return () => {
@@ -161,6 +179,17 @@ export default function EmbeddingModal({
 		};
 	}, []);
 	
+	useEffect(() => {
+		const fetchCategories = async () => {
+			try {
+				const res = await axios.get(`${BASE_URL}/api/extraction/categories`);
+				setCategories(res.data);
+			} catch (err) {
+				console.error("Failed to load categories", err);
+			}
+		}; 
+		fetchCategories();
+	}, []);
 
 	return (
 		<div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
@@ -186,6 +215,7 @@ export default function EmbeddingModal({
 								transition-colors duration-200 
 								${mode === "add" ? "bg-sky-600 text-white border-sky-600" : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-blue-100"}
 							`}
+							title="Start collecting images"
 						>
 							<Plus size={18} className={mode === "add" ? "text-white" : "text-blue-600"} />
 							New
@@ -248,19 +278,40 @@ export default function EmbeddingModal({
 
 								<div className="flex justify-center gap-4 mt-4">
 									{!started && mode === "add" && (
-									<button
-										onClick={handleStart}
-										className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200 shadow-md hover:shadow-lg cursor-pointer"
-									>
-										<Play size={18} />
-										Start
-									</button>
+									 <div className="flex items-center gap-4">
+    
+										<select
+											value={category_id}
+											onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
+											className="px-4 py-2 rounded-lg border border-gray-500 bg-gray-800 text-white"
+											>
+											<option value="">Select Category</option>
+											{categories.map(c => (
+												<option key={c.id} value={c.id}>
+												{c.name}
+												</option>
+											))}
+										</select> 
+										<button
+											onClick={handleStart}
+											disabled={!category_id}
+											className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg cursor-pointer
+												${category_id 
+												? "bg-green-600 hover:bg-green-700 text-white"
+												: "bg-gray-600 text-gray-300 cursor-not-allowed"
+												}`}
+											>
+											<Play size={18} />
+											Start
+										</button>
+									</div>
 									)}
 
 									{started && (
 										<button
 											onClick={handleStop}
 											className="flex items-center gap-2 px-5 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 shadow-md hover:shadow-lg cursor-pointer"
+											title="Stop collecting images"
 										>
 											<Square size={18} />
 											Stop
