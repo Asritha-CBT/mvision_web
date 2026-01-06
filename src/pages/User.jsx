@@ -73,21 +73,34 @@ export default function Users() {
 		try {
 			if (selectedUser) {
 				// UPDATE
-				await axios.put(`${FastAPIConfig.BASE_URL}/users/update/${selectedUser.id}`, data);
+				await axios.put(
+					`${FastAPIConfig.BASE_URL}/users/update/${selectedUser.id}`,
+					data
+				);
 				alert("User updated successfully!");
 			} else {
 				// INSERT
-				await axios.post(`${FastAPIConfig.BASE_URL}/users/user_register`, data);
+				await axios.post(
+					`${FastAPIConfig.BASE_URL}/users/user_register`,
+					data
+				);
 				alert("User registered successfully!");
 			}
 
 			loadUsers();
 			setModalOpen(false);
+
 		} catch (err) {
-			console.error("Submit error:", err);
+			console.error("Submit error:", err); 
+			// Show backend message
+			if (err.response && err.response.data && err.response.data.detail) {
+			alert(err.response.data.detail);
+			} else {
 			alert("Something went wrong. Please try again.");
+			}
 		}
 	};
+
 	// Build table rows
 	const tableData = users.map((u) => [
 		u.name,

@@ -37,6 +37,25 @@ export default function CommonForm({ title,  fields = [], initialData, validate,
             {fields.map((field) => (
                 <div key={field.name}>
                     <label className="block mb-1">{field.label}</label>
+
+                    {field.type === "select" ? (
+                    <select
+                        name={field.name}
+                        value={form[field.name] ?? ""}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 rounded bg-gray-800 text-white"
+                    >
+                        <option value="" disabled>
+                        Select {field.label}
+                        </option>
+
+                        {(field.options || []).map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                        </option>
+                        ))}
+                    </select>
+                    ) : (
                     <input
                         name={field.name}
                         type={field.type || "text"}
@@ -44,11 +63,14 @@ export default function CommonForm({ title,  fields = [], initialData, validate,
                         onChange={handleChange}
                         className="w-full px-3 py-2 rounded bg-gray-800 text-white"
                     />
+                    )}
+
                     {errors[field.name] && (
-                        <p className="text-red-500">{errors[field.name]}</p>
+                    <p className="text-red-500">{errors[field.name]}</p>
                     )}
                 </div>
-            ))}
+                ))}
+
 
             <button
                 type="submit"

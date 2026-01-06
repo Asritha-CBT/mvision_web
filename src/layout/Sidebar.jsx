@@ -1,9 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Clock } from "lucide-react";
+import { Home, Users, Clock, Camera, LayoutGrid} from "lucide-react";
 
 export default function Sidebar({ items, collapsed }) {
     const iconMap = {
+        "Category": <LayoutGrid size={20} />,
         "Dashboard": <Home size={20} />,
+        "Camera": <Camera size={20} />,
         "Persons": <Users size={20} />,
         "Person Presence": <Clock size={20} />,
     };

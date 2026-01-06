@@ -92,7 +92,7 @@ export default function UserPresenceReport() {
 		const fetchFiltersData = async () => {
 			try {
 				const [camsRes, usersRes] = await Promise.all([
-					axios.get(`${FastAPIConfig.BASE_URL}/reports/cameras`, {
+					axios.get(`${FastAPIConfig.BASE_URL}/camera/camera_list`, {
 						signal: controller.signal,
 					}),
 					axios.get(`${FastAPIConfig.BASE_URL}/users/users`, {
@@ -280,14 +280,19 @@ export default function UserPresenceReport() {
 				</div>
 				<div className="flex flex-col">
 					<label className="text-sm font-medium text-slate-600 mb-1">Camera</label>
-					<select value={camNum} onChange={(e) => setCamNum(e.target.value)} className="px-3 py-2 border rounded text-slate-600">
-						<option value="">All cameras</option>
-						{cams.map((c) => (
-							<option key={c.id ?? c.number ?? c.cam_number} value={c.number ?? c.cam_number ?? c.id}>
-								{c.name ?? `Camera ${c.number ?? c.cam_number ?? c.id}`}
-							</option>
-						))}
-					</select>
+					<select
+					value={camNum}
+					onChange={(e) => setCamNum(e.target.value)}
+					className="px-3 py-2 border rounded text-slate-600"
+					>
+					<option value="">All cameras</option>
+
+					{cams.map((c) => (
+						<option key={c.id} value={String(c.id)}>
+						{c.camera_name}
+						</option>
+					))}
+					</select> 
 				</div>
 
 				<div className="flex flex-col">

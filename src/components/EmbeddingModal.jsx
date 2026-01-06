@@ -105,22 +105,22 @@ export default function EmbeddingModal({
 			setProgress(0);
 
 			const res = await axios.post(`${BASE_URL}/api/extraction/extract`, {
-			id: user.id,
-			category_id: category_id != null ? Number(category_id) : null,
+				id: user.id,
+				category_id: category_id != null ? Number(category_id) : null,
 			});
 
 			// Always poll after started
 			if (res.data?.status === "started") {
-			callProgressService(user.id);
+				callProgressService(user.id);
 			} else if (res.data?.status === "error") {
-			throw new Error(res.data?.message || "Extraction error");
+				throw new Error(res.data?.message || "Extraction error");
 			}
 		} catch (err) {
 			console.error(err.response?.data || err);
 			alert("Extraction failed");
 			setIsProcessing(false);
 		}
-		};
+	};
 
 	const callProgressService = (userId) => {
 		// clear any old poller
