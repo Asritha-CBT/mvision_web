@@ -11,6 +11,7 @@ import {FastAPIConfig} from '../constants/configConstants';
 
 export default function Users() {
 
+	const [departments, setDepartments] = useState([]);
 	const [users, setUsers] = useState([]);
 	const [selectedUser, setSelectedUser] = useState(null);
 	const [modalOpen, setModalOpen] = useState(false);
@@ -19,20 +20,35 @@ export default function Users() {
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const [page, setPage] = useState(0);
-	const perPage = 6;
+	const perPage = 6; 
+
+
+	const loadDepartments = async () => {
+		try {
+			const res = await axios.get(`${FastAPIConfig.BASE_URL}/users/departments`);
+			setDepartments(res.data || []);
+		} catch (err) {
+			console.error("Error loading cameras:", err);
+		}
+	};
 
   // ---------- FETCH USERS ----------
 	const loadUsers = async () => {
-			try {
-				const res = await axios.get(`${FastAPIConfig.BASE_URL}/users/users`); 
-				setUsers(res.data);
-			} catch (err) {
-				console.error("Error loading users:", err);
-			}
+	try {
+		const res = await axios.get(`${FastAPIConfig.BASE_URL}/users/users`);
+		const normalized = res.data.map(u => ({
+		...u,
+		department: u.department?.name ?? "NA"   // 🔥 convert object → string
+		}));
+		setUsers(normalized);
+	} catch (err) {
+		console.error("Error loading users:", err);
+	}
 	};
 
 	useEffect(() => {
 		loadUsers();
+		loadDepartments();
 	}, []);
 
 	// ---------- OPEN ADD ----------
@@ -69,36 +85,22 @@ export default function Users() {
 	};
 
 	// ---------- ADD or EDIT ----------
-	const handleSubmit = async (data) => {
-		try {
-			if (selectedUser) {
-				// UPDATE
-				await axios.put(
-					`${FastAPIConfig.BASE_URL}/users/update/${selectedUser.id}`,
-					data
-				);
-				alert("User updated successfully!");
-			} else {
-				// INSERT
-				await axios.post(
-					`${FastAPIConfig.BASE_URL}/users/user_register`,
-					data
-				);
-				alert("User registered successfully!");
-			}
+	const handleSubmit = async (form) => {
+		const data = {
+			name: form.name,
+			gender: form.gender,
+			department_id: form.department
+		};
 
-			loadUsers();
-			setModalOpen(false);
-
-		} catch (err) {
-			console.error("Submit error:", err); 
-			// Show backend message
-			if (err.response && err.response.data && err.response.data.detail) {
-			alert(err.response.data.detail);
-			} else {
-			alert("Something went wrong. Please try again.");
-			}
+		if (selectedUser) {
+			// UPDATE
+			await axios.put(`${FastAPIConfig.BASE_URL}/users/update/${selectedUser.id}`, data);
+		} else {
+			// INSERT
+			await axios.post(`${FastAPIConfig.BASE_URL}/users/user_register`, data);
 		}
+		loadUsers();
+      	setModalOpen(false);
 	};
 
 	// Build table rows
@@ -126,8 +128,8 @@ export default function Users() {
 			</span>
 		),
 
-		// Category column (NA if missing)
-		u?.category?.name ?? "NA",
+		// Area Definition column (NA if missing)
+		u?.area_definition?.name ?? "NA",
 
 		// Actions column
 		<div className="flex items-center gap-2" key={`actions-${u.id}`}>
@@ -215,7 +217,7 @@ export default function Users() {
 
 					{/* 🧾 Table */}
 					<Table
-						columns={["Name", "Department", "Embeddings", "Category",  "Actions"]}
+						columns={["Name", "Department", "Embeddings", "Area Definition",  "Actions"]}
 						data={paginated}
 					/>
 
@@ -248,23 +250,58 @@ export default function Users() {
 			{/* Add / Edit Modal */}
 			{modalOpen && (
 				<Modal onClose={() => setModalOpen(false)}>
+					{console.log(selectedUser)}
 					<CommonForm
-						title={selectedUser ? "Update  Person" : "Person Registration"}
-						initialData={selectedUser || { name: "", department: "" }}
+						title={selectedUser ? "Update Person" : "Person Registration"}
+						initialData={
+						selectedUser
+							? {
+								name: selectedUser.name,
+								department: selectedUser.department?.id ?? "",
+								gender: selectedUser.gender
+							}
+							: {
+								name: "",
+								department: "",
+								gender: ""
+							}
+						}
 						onSubmit={handleSubmit}
 						fields={[
 							{ name: "name", label: "Name", type: "text", required: true },
-							{ name: "department", label: "Department", type: "text", required: true }
+
+							{
+								name: "department",
+								label: "Department",
+								type: "select",
+								required: true,
+								options: departments.map((dept) => ({
+									label: dept.name,
+									value: dept.id
+								}))
+							},
+
+							{
+								name: "gender",
+								label: "Gender",
+								type: "select",
+								required: true,
+								options: [
+									{ label: "Male", value: "male" },
+									{ label: "Female", value: "female" },
+									{ label: "Other", value: "other" }
+								]
+							}
 						]}
 						validate={(form) => {
 							const e = {};
 							if (!form.name?.trim()) e.name = "Name is required";
-							if (!form.department?.trim()) e.department = "Department is required";
+							if (!form.department) e.department = "Department is required";
+							if (!form.gender) e.gender = "Gender is required";
 							return e;
 						}}
 					/>
-				</Modal>
-
+				</Modal> 
 			)}
 
 			{/* Embedding modal: single instance controlled by modalUser */}

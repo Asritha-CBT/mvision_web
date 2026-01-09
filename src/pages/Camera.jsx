@@ -10,7 +10,7 @@ import { FastAPIConfig } from "../constants/configConstants";
 
 export default function Cameras() {
 	const [cameras, setCameras] = useState([]);
-	const [categories, setCategories] = useState([]);
+	const [area_definitions, setAreaDefinitions] = useState([]);
 	const [selectedCamera, setSelectedCamera] = useState(null);
 	const [modalOpen, setModalOpen] = useState(false);
 
@@ -25,8 +25,8 @@ export default function Cameras() {
 		updateCamera: (id) => `${FastAPIConfig.BASE_URL}/camera/update/${id}`,
 		deleteCamera: (id) => `${FastAPIConfig.BASE_URL}/camera/delete/${id}`,
 
-		// categories
-		listCategories: `${FastAPIConfig.BASE_URL}/category/categories`,
+		// area_definitions
+		listAreaDefinitions: `${FastAPIConfig.BASE_URL}/area_definition/area_definitions`,
 	};
 
 	// ---------- FETCH ----------
@@ -39,27 +39,27 @@ export default function Cameras() {
 		}
 	};
 
-	const loadCategories = async () => {
+	const loadAreaDefinitions = async () => {
 		try {
-			const res = await axios.get(API.listCategories);
-			setCategories(res.data || []);
+			const res = await axios.get(API.listAreaDefinitions);
+			setAreaDefinitions(res.data || []);
 		} catch (err) {
-			console.error("Error loading categories:", err);
-			setCategories([]);
+			console.error("Error loading area_definitions:", err);
+			setAreaDefinitions([]);
 		}
 	};
 
 	useEffect(() => {
 		loadCameras();
-		loadCategories();
+		loadAreaDefinitions();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	const categoryNameById = useMemo(() => {
+	const area_definitionNameById = useMemo(() => {
 		const map = new Map();
-		for (const c of categories) map.set(c.id, c.name);
+		for (const c of area_definitions) map.set(c.id, c.name);
 		return map;
-	}, [categories]);
+	}, [area_definitions]);
 
 	// ---------- OPEN ADD ----------
 	const handleAdd = () => {
@@ -83,17 +83,22 @@ export default function Cameras() {
 			alert("Camera deleted successfully!");
 			loadCameras();
 		} catch (err) {
-			alert("Something went wrong. Please try again.");
-			console.error("Delete error:", err);
+			const message =
+				err.response?.data?.detail ||
+				"Something went wrong. Please try again.";
+
+			alert(message);
+			console.error("Delete error:", err.response || err);
 		}
 	};
+
 
 	// ---------- ADD / EDIT SUBMIT ----------
 	const handleSubmit = async (data) => {
 		try {
 			const payload = {
 				...data,
-				category_id: data.category_id !== "" ? Number(data.category_id) : data.category_id,
+				area_definition_id: data.area_definition_id !== "" ? Number(data.area_definition_id) : data.area_definition_id,
 			};
 
 			if (selectedCamera) {
@@ -124,15 +129,15 @@ export default function Cameras() {
 		if (!q) return cameras;
 
 		return cameras.filter((cam) => {
-			const catName =
-				cam?.category?.name ??
-				categoryNameById.get(cam?.category_id) ??
-				"NA";
-
-			const hay = `${cam.camera_name ?? ""} ${catName}`.toLowerCase();
+			const areaDefName =
+				cam?.area_definition?.name ??
+				area_definitionNameById.get(cam?.area_definition_id) ??
+				"NA"; 
+			const cameraIP = cam?.camera_ip ?? "";
+			const hay = `${cam.camera_name ?? ""} ${cameraIP} ${areaDefName}`.toLowerCase();
 			return hay.includes(q);
 		});
-	}, [cameras, search, categoryNameById]);
+	}, [cameras, search, area_definitionNameById]);
 
 	// ---------- PAGINATION ----------
 	const total = filteredCameras.length;
@@ -155,54 +160,57 @@ export default function Cameras() {
 
 	// ---------- TABLE ROWS ----------
 	const tableData = paginatedCameras.map((cam) => {
-		const catName =
-		cam?.category?.name ??
-		categoryNameById.get(cam?.category_id) ??
+		const areaDefName =
+		cam?.area_definition?.name ??
+		area_definitionNameById.get(cam?.area_definition_id) ??
 		"NA";
 
 		return [
-		cam.camera_name, 
-		catName,
-		<div className="flex items-center gap-2" key={`actions-${cam.id}`}>
-			<button
-			title="Edit"
-			aria-label={`Edit ${cam.camera_name}`}
-			onClick={() => handleEdit(cam)}
-			className="p-2 rounded hover:bg-yellow-500/20 transition-colors"
-			>
-				<Pencil size={18} className="text-yellow-400" />
-			</button>
+			cam.camera_name, 
+			cam.camera_ip, 
+			areaDefName,
+			<div className="flex items-center gap-2" key={`actions-${cam.id}`}>
+				<button
+				title="Edit"
+				aria-label={`Edit ${cam.camera_name}`}
+				onClick={() => handleEdit(cam)}
+				className="p-2 rounded hover:bg-yellow-500/20 transition-colors"
+				>
+					<Pencil size={18} className="text-yellow-400" />
+				</button>
 
-			<button
-			title="Delete"
-			aria-label={`Delete ${cam.camera_name}`}
-			onClick={() => handleDelete(cam.id)}
-			className="p-2 rounded hover:bg-red-600/20 transition-colors"
-			>
-				<Trash2 size={18} className="text-red-400" />
-			</button>
-		</div>,
+				<button
+				title="Delete"
+				aria-label={`Delete ${cam.camera_name}`}
+				onClick={() => handleDelete(cam.id)}
+				className="p-2 rounded hover:bg-red-600/20 transition-colors"
+				>
+					<Trash2 size={18} className="text-red-400" />
+				</button>
+			</div>,
 		];
 	});
 
 	// ---------- FORM ----------
-	const categoryOptions = categories.map((c) => ({
+	const area_definitionOptions = area_definitions.map((c) => ({
 		label: c.name,
 		value: String(c.id),
 	}));
 
-  const initialData = selectedCamera
+  	const initialData = selectedCamera
     ? {
         camera_name: selectedCamera.camera_name ?? "", 
-        category_id: String(
-          selectedCamera.category_id ??
-            selectedCamera?.category?.id ??
+        camera_ip: selectedCamera.camera_ip ?? "", 
+        area_definition_id: String(
+          selectedCamera.area_definition_id ??
+            selectedCamera?.area_definition?.id ??
             ""
         ),
       }
     : {
         camera_name: "", 
-        category_id: categoryOptions[0]?.value ?? "",
+		camera_ip: "",
+        area_definition_id: area_definitionOptions[0]?.value ?? "",
       };
 
   return (
@@ -234,7 +242,7 @@ export default function Cameras() {
 
 				{/* Table */}
 				<Table
-				columns={["Name", "Category", "Actions"]}
+				columns={["Name", "IP Address", "Area Definition", "Actions"]}
 				data={tableData}
 				/>
 
@@ -273,14 +281,27 @@ export default function Cameras() {
 					onSubmit={handleSubmit}
 					fields={[
 						{ name: "camera_name", label: "Name", type: "text", required: true },  
-						{ name: "category_id", label: "Category", type: "select", required: true, options: categoryOptions }, 
+						{ name: "camera_ip", label: "IP Address", type: "text", required: true },
+						{ name: "area_definition_id", label: "Area Definition", type: "select", required: true, options: area_definitionOptions }, 
 					]}
 					validate={(form) => {
 						const e = {};
-						if (!form.camera_name?.trim()) e.camera_name = "Camera name is required"; 
-						if (form.category_id === "" || form.category_id == null) e.category_id = "Category is required";
+
+						if (!form.camera_name?.trim())
+							e.camera_name = "Camera name is required";
+
+						if (!form.camera_ip?.trim())
+							e.camera_ip = "IP Address is required";
+						else if (
+							!/^(\d{1,3}\.){3}\d{1,3}$/.test(form.camera_ip)
+						)
+							e.camera_ip = "Enter a valid IP address";
+
+						if (form.area_definition_id === "" || form.area_definition_id == null)
+							e.area_definition_id = "Area Definition is required";
+
 						return e;
-					}}
+					}} 
 				/>
 			</Modal>
         )}
