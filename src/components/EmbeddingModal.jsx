@@ -19,8 +19,8 @@ export default function EmbeddingModal({
 	const [stage, setStage] = useState("");
 	const [message, setMessage] = useState(""); 
 	const progressIntervalRef = useRef(null);
-	const [categories, setCategories] = useState([]);
-	const [category_id, setCategoryId] = useState("");
+	const [area_definitions, setAreaDefinitions] = useState([]);
+	const [area_definition_id, setAreaDefinitionId] = useState("");
  
 
 	// Reset modal when opened
@@ -71,7 +71,7 @@ export default function EmbeddingModal({
 		try {
 			await axios.post(`${BASE_URL}/api/extraction/start`, {
 				id: user.id,
-				category_id: category_id ?? null
+				area_definition_id: area_definition_id ?? null
 			});
 			setStarted(true);
 			setEmbeddingCollectionCompleted(false);
@@ -106,7 +106,7 @@ export default function EmbeddingModal({
 
 			const res = await axios.post(`${BASE_URL}/api/extraction/extract`, {
 				id: user.id,
-				category_id: category_id != null ? Number(category_id) : null,
+				area_definition_id: area_definition_id != null ? Number(area_definition_id) : null,
 			});
 
 			// Always poll after started
@@ -180,15 +180,15 @@ export default function EmbeddingModal({
 	}, []);
 	
 	useEffect(() => {
-		const fetchCategories = async () => {
+		const fetchAreaDefinitions = async () => {
 			try {
-				const res = await axios.get(`${BASE_URL}/api/extraction/categories`);
-				setCategories(res.data);
+				const res = await axios.get(`${BASE_URL}/api/extraction/area_definitions`);
+				setAreaDefinitions(res.data);
 			} catch (err) {
-				console.error("Failed to load categories", err);
+				console.error("Failed to load area_definitions", err);
 			}
 		}; 
-		fetchCategories();
+		fetchAreaDefinitions();
 	}, []);
 
 	return (
@@ -281,12 +281,12 @@ export default function EmbeddingModal({
 									 <div className="flex items-center gap-4">
     
 										<select
-											value={category_id}
-											onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : null)}
+											value={area_definition_id}
+											onChange={(e) => setAreaDefinitionId(e.target.value ? Number(e.target.value) : null)}
 											className="px-4 py-2 rounded-lg border border-gray-500 bg-gray-800 text-white"
 											>
-											<option value="">Select Category</option>
-											{categories.map(c => (
+											<option value="">Select Area Definition</option>
+											{area_definitions.map(c => (
 												<option key={c.id} value={c.id}>
 												{c.name}
 												</option>
@@ -294,9 +294,9 @@ export default function EmbeddingModal({
 										</select> 
 										<button
 											onClick={handleStart}
-											disabled={!category_id}
+											disabled={!area_definition_id}
 											className={`flex items-center gap-2 px-5 py-2 rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg cursor-pointer
-												${category_id 
+												${area_definition_id 
 												? "bg-green-600 hover:bg-green-700 text-white"
 												: "bg-gray-600 text-gray-300 cursor-not-allowed"
 												}`}

@@ -3,7 +3,7 @@ import { Home, Users, Clock, Camera, LayoutGrid} from "lucide-react";
 
 export default function Sidebar({ items, collapsed }) {
     const iconMap = {
-        "Category": <LayoutGrid size={20} />,
+        "Area Definition": <LayoutGrid size={20} />,
         "Dashboard": <Home size={20} />,
         "Camera": <Camera size={20} />,
         "Persons": <Users size={20} />,
